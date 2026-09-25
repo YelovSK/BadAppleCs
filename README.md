@@ -2,6 +2,8 @@ Ray marched Bad Apple using raylib.
 
 <img width="1813" height="1359" alt="image" src="https://github.com/user-attachments/assets/60a30976-dac0-43aa-90f9-1a8bafb06217" />
 
+https://github.com/user-attachments/assets/cfd243db-055e-4afe-a923-d201ea2defe3
+
 ## Get video frames and audio
 
 Any resolution works. These steps use the 1440p (1920×1440, 30 fps, ~350 MB) upscale from the [Internet Archive](https://archive.org/details/bad-apple-resources). Requires [ffmpeg](https://ffmpeg.org/).
