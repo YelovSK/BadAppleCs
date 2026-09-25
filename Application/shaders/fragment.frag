@@ -6,14 +6,15 @@ in vec2 fragTexCoord;
 
 // Uniforms
 uniform sampler2D texture0;
+uniform sampler2D seedTex; // Nearest white texel per texel, from the jump flood
 uniform float time;
 uniform vec2 texSize;
 uniform vec2 lightPos;
 uniform bool softShadows;
-uniform int raymarchStepSizePx;
 uniform int softShadowSamples;
 
 // Constants
+const int MAX_STEPS = 256;
 const vec3 LIGHT_COL = vec3(1.0, 0.3, 0.3);
 const float LIGHT_AREA_RADIUS = 20.0; // The bigger the radius, the softer the shadows
 
@@ -36,20 +37,29 @@ vec3 srgb(vec3 lin) {
     return pow(lin, vec3(1.0 / 2.2));
 }
 
+ivec2 decodeSeed(vec4 c) {
+    ivec4 b = ivec4(round(c * 255.0));
+    return ivec2(b.r << 8 | b.g, b.b << 8 | b.a);
+}
+
+float distanceToWhite(vec2 pos) {
+    ivec2 seed = decodeSeed(texelFetch(seedTex, ivec2(pos), 0));
+    return distance(pos, vec2(seed) + 0.5);
+}
+
+// Sphere traces towards the light: the distance field guarantees no white texel within d, so it's safe to jump that far
 float getIllumination(vec2 pos, vec2 lightPos) {
     vec2 dir = normalize(lightPos - pos);
     float dist = distance(lightPos, pos);
+    float t = 0.0;
 
-	int maxSteps = int(dist / raymarchStepSizePx);
-	vec2 stepDir = dir * raymarchStepSizePx;
-
-    for (int i = 0; i < maxSteps; ++i) {
-		bool isWhite = texelFetch(texture0, ivec2(pos), 0).r > 0.5;
-        if (isWhite) {
-            return 1.0 - (i * raymarchStepSizePx / dist);
+    for (int i = 0; i < MAX_STEPS && t < dist; ++i) {
+        float d = distanceToWhite(pos + dir * t);
+        if (d < 1.0) {
+            return 1.0 - t / dist;
         }
 
-		pos += stepDir;
+        t += d;
     }
 
     // Color of black areas

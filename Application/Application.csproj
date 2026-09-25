@@ -27,7 +27,7 @@
     <None Update="resources\bad_apple.wav">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
-    <None Update="shaders\fragment.frag">
+    <None Update="shaders\*.frag">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>

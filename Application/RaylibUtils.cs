@@ -22,15 +22,17 @@ internal static class RaylibUtils
         }
     }
 
-    public static void DrawTextureFit(Texture2D texture)
+    public static void DrawRenderTextureFit(RenderTexture2D target)
     {
+        Texture2D texture = target.Texture;
         int screenW = Raylib.GetScreenWidth();
         int screenH = Raylib.GetScreenHeight();
 
-        Rectangle src = new(0, 0, texture.Width, texture.Height);
+        // Render textures are stored upside down
+        Rectangle src = new(0, 0, texture.Width, -texture.Height);
         Rectangle dest = GetAspectFitRect(texture, screenW, screenH);
 
-        Raylib.DrawTexturePro(texture, src, dest, Vector2.Zero, 0f, Color.Black);
+        Raylib.DrawTexturePro(texture, src, dest, Vector2.Zero, 0f, Color.White);
     }
 
     public static Vector2 GetMousePositionInTexture(Texture2D texture)

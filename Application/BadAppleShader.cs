@@ -11,9 +11,9 @@ internal class BadAppleShader
     private readonly int locTime;
     private readonly int locTexSize;
     private readonly int locLightPos;
-    private readonly int locStepSize;
     private readonly int locShadowSamples;
     private readonly int locSoftShadows;
+    private readonly int locSeedTex;
 
     // Properties
     public float Time
@@ -56,23 +56,13 @@ internal class BadAppleShader
         }
     }
 
-    public int StepSize
-    {
-        get;
-        set
-        {
-            field = Math.Max(0, value);
-            Raylib.SetShaderValue(Shader, locStepSize, value, ShaderUniformDataType.Int);
-        }
-    }
-
     public int ShadowSamples
     {
         get;
         set
         {
-            field = Math.Max(0, value);
-            Raylib.SetShaderValue(Shader, locShadowSamples, value, ShaderUniformDataType.Int);
+            field = Math.Max(1, value);
+            Raylib.SetShaderValue(Shader, locShadowSamples, field, ShaderUniformDataType.Int);
         }
     }
 
@@ -85,35 +75,34 @@ internal class BadAppleShader
         locTime = Raylib.GetShaderLocation(Shader, "time");
         locTexSize = Raylib.GetShaderLocation(Shader, "texSize");
         locLightPos = Raylib.GetShaderLocation(Shader, "lightPos");
-        locStepSize = Raylib.GetShaderLocation(Shader, "raymarchStepSizePx");
         locShadowSamples = Raylib.GetShaderLocation(Shader, "softShadowSamples");
         locSoftShadows = Raylib.GetShaderLocation(Shader, "softShadows");
+        locSeedTex = Raylib.GetShaderLocation(Shader, "seedTex");
 
         // Defaults
         SoftShadows = true;
-        StepSize = 3;
         ShadowSamples = 10;
     }
 
     public void ToggleSoftShadows() => SoftShadows = !SoftShadows;
+
+    // raylib forgets extra sampler bindings after each draw batch, so call this after BeginShaderMode
+    public void BindSeedTexture(Texture2D texture) => Raylib.SetShaderValueTexture(Shader, locSeedTex, texture);
 
     public void SetQualityPreset(ShaderQuality quality)
     {
         switch (quality)
         {
             case ShaderQuality.Low:
-                StepSize = 1;
                 SoftShadows = false;
                 break;
 
             case ShaderQuality.Medium:
-                StepSize = 2;
                 ShadowSamples = 5;
                 SoftShadows = true;
                 break;
 
             case ShaderQuality.High:
-                StepSize = 1;
                 ShadowSamples = 10;
                 SoftShadows = true;
                 break;
