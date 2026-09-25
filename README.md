@@ -12,7 +12,7 @@ Run from the `Application` folder:
 
 1. `curl -L -o bad_apple.mp4 "https://archive.org/download/bad-apple-resources/bad_apple%401440p.mp4"`
 
-2. `ffmpeg -i bad_apple.mp4 resources/image_sequence/%d.png`
+2. `ffmpeg -i bad_apple.mp4 -pix_fmt gray resources/image_sequence/%d.png`
 
 3. `ffmpeg -i bad_apple.mp4 -vn resources/bad_apple.wav`
 
