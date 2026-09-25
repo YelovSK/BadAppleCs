@@ -1,4 +1,4 @@
-using Raylib_cs;
+﻿using Raylib_cs;
 
 namespace Application;
 
@@ -12,6 +12,19 @@ internal class PlaybackClock
 
     public float Time => music is Music m ? Raylib.GetMusicTimePlayed(m) : silentTime;
 
+    public float Volume
+    {
+        get;
+        set
+        {
+            field = Math.Clamp(value, 0f, 1f);
+            if (music is Music m)
+            {
+                Raylib.SetMusicVolume(m, field);
+            }
+        }
+    }
+
     public PlaybackClock(Music? music, float videoLength)
     {
         this.music = music;
@@ -20,9 +33,10 @@ internal class PlaybackClock
         if (music is Music m)
         {
             length = Raylib.GetMusicTimeLength(m);
-            Raylib.SetMusicVolume(m, 0.5f);
             Raylib.PlayMusicStream(m);
         }
+
+        Volume = 0.5f;
     }
 
     public void Update(float deltaTime)

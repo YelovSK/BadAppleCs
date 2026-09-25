@@ -7,6 +7,7 @@ internal class Program
 {
     const int FPS = 30;
     const float SEEK_SECONDS = 5f;
+    const float VOLUME_STEP = 0.05f;
 
     // Lighting resolution relative to the area the video covers in the window.
     // E.g. fullscreen on a 4K monitor, the video covers 2880x2160, so 0.5 renders the lighting at 1440x1080.
@@ -113,6 +114,8 @@ internal class Program
                 prefetchedFrame = frameToLoad;
                 imageLoadTask = Task.Run(() => Raylib.LoadImage(frameFiles[frameToLoad]));
             }
+
+            clock.Volume += Raylib.GetMouseWheelMove() * VOLUME_STEP;
 
             switch (Raylib.GetKeyPressed())
             {
