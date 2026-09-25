@@ -10,13 +10,16 @@ uniform sampler2D seedTex; // Nearest white texel per texel, from the jump flood
 uniform float time;
 uniform vec2 texSize;
 uniform vec2 lightPos;
+uniform float whiteThreshold;
 uniform bool softShadows;
 uniform int softShadowSamples;
 
 // Constants
 const int MAX_STEPS = 256;
 const vec3 LIGHT_COL = vec3(1.0, 0.3, 0.3);
-const float LIGHT_AREA_RADIUS = 20.0; // The bigger the radius, the softer the shadows
+// Sizes are fractions of the frame height, so the look doesn't depend on the frame resolution
+const float LIGHT_AREA_RADIUS = 20.0 / 1080.0;
+const float HIT_DISTANCE = 1.0 / 1080.0;
 
 // https://stackoverflow.com/a/4275343/13822225
 float rand(vec2 n) {
@@ -51,11 +54,12 @@ float distanceToWhite(vec2 pos) {
 float getIllumination(vec2 pos, vec2 lightPos) {
     vec2 dir = normalize(lightPos - pos);
     float dist = distance(lightPos, pos);
+    float hitDistance = max(1.0, HIT_DISTANCE * texSize.y);
     float t = 0.0;
 
     for (int i = 0; i < MAX_STEPS && t < dist; ++i) {
         float d = distanceToWhite(pos + dir * t);
-        if (d < 1.0) {
+        if (d < hitDistance) {
             return 1.0 - t / dist;
         }
 
@@ -74,7 +78,7 @@ float getSoftIllumination(vec2 pos, vec2 lightPos) {
         float r1 = rand(seed);
         float r2 = rand(seed + vec2(5.2, 1.3));
         float angle = r1 * 2.0 * 3.14159;
-        float radius = sqrt(r2) * LIGHT_AREA_RADIUS; 
+        float radius = sqrt(r2) * LIGHT_AREA_RADIUS * texSize.y;
         
         vec2 randomOffset = vec2(cos(angle), sin(angle)) * radius;
 
@@ -86,8 +90,11 @@ float getSoftIllumination(vec2 pos, vec2 lightPos) {
 
 void main() {
 	vec2 pos = fragTexCoord * texSize;
-    vec4 texCol = texture(texture0, fragTexCoord);
-    float luminance = texCol.r;
+    // Frames are usually lower resolution than the output, so the bilinearly filtered edge is sharpened
+    // back to a crisp edge about one output pixel wide
+    float value = texture(texture0, fragTexCoord).r;
+    float edgeWidth = max(fwidth(value), 1e-4); // smoothstep is undefined for equal edges
+    float luminance = smoothstep(whiteThreshold - edgeWidth, whiteThreshold + edgeWidth, value);
 
     float illum = softShadows
         ? getSoftIllumination(pos, lightPos)

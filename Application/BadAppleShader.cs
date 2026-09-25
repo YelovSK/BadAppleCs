@@ -11,6 +11,7 @@ internal class BadAppleShader
     private readonly int locTime;
     private readonly int locTexSize;
     private readonly int locLightPos;
+    private readonly int locWhiteThreshold;
     private readonly int locShadowSamples;
     private readonly int locSoftShadows;
     private readonly int locSeedTex;
@@ -46,6 +47,16 @@ internal class BadAppleShader
         }
     }
 
+    public float WhiteThreshold
+    {
+        get;
+        set
+        {
+            field = value;
+            Raylib.SetShaderValue(Shader, locWhiteThreshold, value, ShaderUniformDataType.Float);
+        }
+    }
+
     public bool SoftShadows
     {
         get;
@@ -75,6 +86,7 @@ internal class BadAppleShader
         locTime = Raylib.GetShaderLocation(Shader, "time");
         locTexSize = Raylib.GetShaderLocation(Shader, "texSize");
         locLightPos = Raylib.GetShaderLocation(Shader, "lightPos");
+        locWhiteThreshold = Raylib.GetShaderLocation(Shader, "whiteThreshold");
         locShadowSamples = Raylib.GetShaderLocation(Shader, "softShadowSamples");
         locSoftShadows = Raylib.GetShaderLocation(Shader, "softShadows");
         locSeedTex = Raylib.GetShaderLocation(Shader, "seedTex");

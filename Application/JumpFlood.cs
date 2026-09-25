@@ -1,4 +1,4 @@
-using Raylib_cs;
+﻿using Raylib_cs;
 using System.Numerics;
 
 namespace Application;
@@ -15,9 +15,14 @@ internal class JumpFlood
 
     public Texture2D Result => front.Texture;
 
-    public JumpFlood(string seedShaderPath, string stepShaderPath, int width, int height)
+    public JumpFlood(string seedShaderPath, string stepShaderPath, int width, int height, float whiteThreshold)
     {
         seedShader = Raylib.LoadShader(null, seedShaderPath);
+        Raylib.SetShaderValue(
+            seedShader,
+            Raylib.GetShaderLocation(seedShader, "whiteThreshold"),
+            whiteThreshold,
+            ShaderUniformDataType.Float);
         stepShader = Raylib.LoadShader(null, stepShaderPath);
         locJumpStep = Raylib.GetShaderLocation(stepShader, "jumpStep");
         front = Raylib.LoadRenderTexture(width, height);

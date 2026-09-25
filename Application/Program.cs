@@ -2,19 +2,21 @@
 using Raylib_cs;
 using System.Numerics;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
 internal class Program
 {
-    const int SCREEN_WIDTH = 1440;
-    const int SCREEN_HEIGHT = 1080;
     const int FPS = 30;
     const float SEEK_SECONDS = 5f;
-    const int LIGHTING_SCALE = 1;
+
+    // Lighting resolution relative to the area the video covers in the window.
+    // E.g. fullscreen on a 4K monitor, the video covers 2880x2160, so 0.5 renders the lighting at 1440x1080.
+    const float LIGHTING_SCALE = 1f;
+    const float WHITE_THRESHOLD = 0.35f;
 
     const string FRAGMENT_SHADER_PATH = "shaders/fragment.frag";
     const string JFA_SEED_SHADER_PATH = "shaders/jfa_seed.frag";
     const string JFA_STEP_SHADER_PATH = "shaders/jfa_step.frag";
+
     const string AUDIO_PATH = "resources/bad_apple.wav";
     const string IMAGES_PATH = "resources/image_sequence";
 
@@ -22,9 +24,9 @@ internal class Program
     {
         Raylib.SetTraceLogLevel(TraceLogLevel.Warning);
         Raylib.SetConfigFlags(ConfigFlags.ResizableWindow);
-        Raylib.InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Bad Apple");
-        // Raylib.SetTargetFPS(Raylib.GetMonitorRefreshRate(Raylib.GetCurrentMonitor()));
-        Raylib.SetTargetFPS(120);
+        Raylib.InitWindow(1440, 1080, "Bad Apple");
+        int refreshRate = Raylib.GetMonitorRefreshRate(Raylib.GetCurrentMonitor());
+        Raylib.SetTargetFPS(Math.Min(refreshRate, 120));
         Raylib.InitAudioDevice();
 
         if (!File.Exists(FRAGMENT_SHADER_PATH))
@@ -34,14 +36,6 @@ internal class Program
         }
 
         BadAppleShader shader = BadAppleShader.Load(FRAGMENT_SHADER_PATH);
-
-        if (!File.Exists(AUDIO_PATH))
-        {
-            Console.WriteLine($"Error: Audio file not found at {Path.GetFullPath(AUDIO_PATH)}");
-            return;
-        }
-
-        Music music = Raylib.LoadMusicStream(AUDIO_PATH);
 
         if (!Directory.Exists(IMAGES_PATH))
         {
@@ -60,38 +54,44 @@ internal class Program
             return;
         }
 
+        Music? music = null;
+        if (File.Exists(AUDIO_PATH))
+        {
+            music = Raylib.LoadMusicStream(AUDIO_PATH);
+        }
+        else
+        {
+            Console.WriteLine($"Audio file not found at {Path.GetFullPath(AUDIO_PATH)}, playing without sound");
+        }
+
         State state = new()
         {
             CurrentFrame = 0,
-            IsPaused = false,
             Quality = ShaderQuality.Medium
         };
 
         // Preload first frame
         Image nextImage = Raylib.LoadImage(frameFiles[0]);
-        Texture2D currentTexture = Raylib.LoadTextureFromImage(nextImage);
+        Texture2D currentTexture = LoadFrameTexture(nextImage);
         Raylib.UnloadImage(nextImage);
 
-        RenderTexture2D lightingTarget = Raylib.LoadRenderTexture(
-            currentTexture.Width * LIGHTING_SCALE,
-            currentTexture.Height * LIGHTING_SCALE);
-        Raylib.SetTextureFilter(lightingTarget.Texture, TextureFilter.Bilinear);
+        // Created in the loop, sized to the window
+        RenderTexture2D lightingTarget = default;
 
-        JumpFlood jumpFlood = new(JFA_SEED_SHADER_PATH, JFA_STEP_SHADER_PATH, currentTexture.Width, currentTexture.Height);
+        shader.WhiteThreshold = WHITE_THRESHOLD;
+        JumpFlood jumpFlood = new(JFA_SEED_SHADER_PATH, JFA_STEP_SHADER_PATH, currentTexture.Width, currentTexture.Height, WHITE_THRESHOLD);
         jumpFlood.Update(currentTexture);
 
         int prefetchedFrame = 1 % frameFiles.Length;
         Task<Image> imageLoadTask = Task.Run(() => Raylib.LoadImage(frameFiles[prefetchedFrame]));
 
-        Raylib.SetMusicVolume(music, 0.5f);
-        Raylib.PlayMusicStream(music);
+        PlaybackClock clock = new(music, (float)frameFiles.Length / FPS);
 
         while (!Raylib.WindowShouldClose())
         {
-            Raylib.UpdateMusicStream(music);
+            clock.Update(Raylib.GetFrameTime());
 
-            // The video follows the audio clock, which also takes care of pausing and seeking
-            int targetFrame = (int)(Raylib.GetMusicTimePlayed(music) * FPS) % frameFiles.Length;
+            int targetFrame = (int)(clock.Time * FPS) % frameFiles.Length;
             if (targetFrame != state.CurrentFrame)
             {
                 Image image = imageLoadTask.Result;
@@ -103,7 +103,7 @@ internal class Program
                 }
 
                 Raylib.UnloadTexture(currentTexture);
-                currentTexture = Raylib.LoadTextureFromImage(image);
+                currentTexture = LoadFrameTexture(image);
                 Raylib.UnloadImage(image);
                 jumpFlood.Update(currentTexture);
 
@@ -113,9 +113,6 @@ internal class Program
                 prefetchedFrame = frameToLoad;
                 imageLoadTask = Task.Run(() => Raylib.LoadImage(frameFiles[frameToLoad]));
             }
-
-            int width = Raylib.GetScreenWidth();
-            int height = Raylib.GetScreenHeight();
 
             switch (Raylib.GetKeyPressed())
             {
@@ -132,23 +129,15 @@ internal class Program
                     break;
 
                 case (int)KeyboardKey.Left:
-                    Seek(music, -SEEK_SECONDS);
+                    clock.Seek(-SEEK_SECONDS);
                     break;
 
                 case (int)KeyboardKey.Right:
-                    Seek(music, SEEK_SECONDS);
+                    clock.Seek(SEEK_SECONDS);
                     break;
 
                 case (int)KeyboardKey.Space:
-                    state.IsPaused = !state.IsPaused;
-                    if (state.IsPaused)
-                    {
-                        Raylib.PauseMusicStream(music);
-                    }
-                    else
-                    {
-                        Raylib.ResumeMusicStream(music);
-                    }
+                    clock.TogglePause();
                     break;
 
                 case (int)KeyboardKey.Enter:
@@ -166,6 +155,16 @@ internal class Program
             shader.Time = (float)Raylib.GetTime();
             shader.TexSize = new Vector2(currentTexture.Width, currentTexture.Height);
             shader.LightPos = RaylibUtils.GetMousePositionInTexture(currentTexture);
+
+            Rectangle videoArea = RaylibUtils.GetAspectFitRect(currentTexture, Raylib.GetScreenWidth(), Raylib.GetScreenHeight());
+            int lightingWidth = Math.Max(1, (int)(videoArea.Width * LIGHTING_SCALE));
+            int lightingHeight = Math.Max(1, (int)(videoArea.Height * LIGHTING_SCALE));
+            if (lightingTarget.Texture.Width != lightingWidth || lightingTarget.Texture.Height != lightingHeight)
+            {
+                Raylib.UnloadRenderTexture(lightingTarget);
+                lightingTarget = Raylib.LoadRenderTexture(lightingWidth, lightingHeight);
+                Raylib.SetTextureFilter(lightingTarget.Texture, TextureFilter.Bilinear);
+            }
 
             Raylib.BeginTextureMode(lightingTarget);
             Raylib.BeginShaderMode(shader.Shader);
@@ -188,20 +187,21 @@ internal class Program
         Raylib.UnloadRenderTexture(lightingTarget);
         jumpFlood.Unload();
         Raylib.UnloadShader(shader.Shader);
-        Raylib.UnloadMusicStream(music);
+        clock.Unload();
         Raylib.CloseWindow();
     }
 
-    private static void Seek(Music music, float offsetSeconds)
+    private static Texture2D LoadFrameTexture(Image image)
     {
-        float position = Raylib.GetMusicTimePlayed(music) + offsetSeconds;
-        Raylib.SeekMusicStream(music, Math.Clamp(position, 0f, Raylib.GetMusicTimeLength(music)));
+        Texture2D texture = Raylib.LoadTextureFromImage(image);
+        // Bilinear for smooth edges
+        Raylib.SetTextureFilter(texture, TextureFilter.Bilinear);
+        return texture;
     }
 
     private struct State
     {
         internal int CurrentFrame;
-        internal bool IsPaused;
         internal ShaderQuality Quality;
     }
 }
